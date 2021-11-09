@@ -1,7 +1,14 @@
 const AWS = require('aws-sdk');
 const ddb = new AWS.DynamoDB();
-const { CONNECTIONS_TABLE_NAME, MEETINGS_TABLE_NAME, ATTENDEES_TABLE_NAME, MESSAGES_TABLE_NAME } = process.env;
-const chime = new AWS.Chime({ region: 'us-east-1' }); // Must be in us-east-1
+const {
+  CONNECTIONS_TABLE_NAME,
+  MEETINGS_TABLE_NAME,
+  ATTENDEES_TABLE_NAME,
+  MESSAGES_TABLE_NAME
+} = process.env;
+const chime = new AWS.Chime({
+  region: 'us-east-1'
+}); // Must be in us-east-1
 chime.endpoint = new AWS.Endpoint('https://service.chime.aws.amazon.com/console');
 
 const oneDayFromNow = Math.floor(Date.now() / 1000) + 60 * 60 * 24;
@@ -19,13 +26,14 @@ const response = {
 };
 
 function uuid() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    var r = Math.random() * 16 | 0,
+      v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
 }
 
-const getMeeting = async(meetingTitle) => {
+const getMeeting = async (meetingTitle) => {
   const filter = {
     TableName: MEETINGS_TABLE_NAME,
     Key: {
@@ -57,13 +65,19 @@ const getMeeting = async(meetingTitle) => {
   return meetingData;
 };
 
-const putMeeting = async(title, playbackURL, meetingInfo) => {
+const putMeeting = async (title, playbackURL, meetingInfo) => {
   await ddb.putItem({
     TableName: MEETINGS_TABLE_NAME,
     Item: {
-      'Title': { S: title },
-      'PlaybackURL': { S: playbackURL },
-      'Data': { S: JSON.stringify(meetingInfo) },
+      'Title': {
+        S: title
+      },
+      'PlaybackURL': {
+        S: playbackURL
+      },
+      'Data': {
+        S: JSON.stringify(meetingInfo)
+      },
       'TTL': {
         N: '' + oneDayFromNow
       }
@@ -71,7 +85,7 @@ const putMeeting = async(title, playbackURL, meetingInfo) => {
   }).promise();
 };
 
-const endMeeting = async(title) => {
+const endMeeting = async (title) => {
   const meetingInfo = await getMeeting(title);
 
   try {
@@ -101,7 +115,7 @@ const endMeeting = async(title) => {
   return result;
 };
 
-const getAttendee = async(title, attendeeId) => {
+const getAttendee = async (title, attendeeId) => {
   const result = await ddb.getItem({
     TableName: ATTENDEES_TABLE_NAME,
     Key: {
@@ -116,7 +130,7 @@ const getAttendee = async(title, attendeeId) => {
   return result.Item.Name.S;
 };
 
-const getAttendees = async(title) => {
+const getAttendees = async (title) => {
   const filter = {
     TableName: ATTENDEES_TABLE_NAME,
     FilterExpression: "begins_with(AttendeeId, :title)",
@@ -139,7 +153,7 @@ const getAttendees = async(title) => {
 
   let filteredItems = [];
   let prop
-  for (prop in result.Items){
+  for (prop in result.Items) {
     filteredItems.push({
       AttendeeId: result.Items[prop].AttendeeId.S,
       Name: result.Items[prop].Name.S
@@ -151,14 +165,16 @@ const getAttendees = async(title) => {
   return filteredItems;
 };
 
-const putAttendee = async(title, attendeeId, name) => {
+const putAttendee = async (title, attendeeId, name) => {
   await ddb.putItem({
     TableName: ATTENDEES_TABLE_NAME,
     Item: {
       'AttendeeId': {
         S: `${title}/${attendeeId}`
       },
-      'Name': { S: name },
+      'Name': {
+        S: name
+      },
       'TTL': {
         N: '' + oneDayFromNow
       }
@@ -236,8 +252,7 @@ exports.authorize = async (event, context, callback) => {
   return generatePolicy(
     'me',
     passedAuthCheck ? 'Allow' : 'Deny',
-    event.methodArn,
-    {
+    event.methodArn, {
       MeetingId: event.queryStringParameters.MeetingId,
       AttendeeId: event.queryStringParameters.AttendeeId
     }
@@ -246,16 +261,24 @@ exports.authorize = async (event, context, callback) => {
 
 exports.onconnect = async event => {
   console.log('onconnect event:', JSON.stringify(event, null, 2));
-  
+
   try {
     await ddb
       .putItem({
         TableName: process.env.CONNECTIONS_TABLE_NAME,
         Item: {
-          MeetingId: { S: event.requestContext.authorizer.MeetingId },
-          AttendeeId: { S: event.requestContext.authorizer.AttendeeId },
-          ConnectionId: { S: event.requestContext.connectionId },
-          TTL: { N: `${oneDayFromNow}` }
+          MeetingId: {
+            S: event.requestContext.authorizer.MeetingId
+          },
+          AttendeeId: {
+            S: event.requestContext.authorizer.AttendeeId
+          },
+          ConnectionId: {
+            S: event.requestContext.connectionId
+          },
+          TTL: {
+            N: `${oneDayFromNow}`
+          }
         }
       })
       .promise();
@@ -266,7 +289,10 @@ exports.onconnect = async event => {
       body: `Failed to connect: ${JSON.stringify(err)}`
     };
   }
-  return { statusCode: 200, body: 'Connected.' };
+  return {
+    statusCode: 200,
+    body: 'Connected.'
+  };
 };
 
 exports.ondisconnect = async event => {
@@ -276,7 +302,9 @@ exports.ondisconnect = async event => {
     attendees = await ddb
       .query({
         ExpressionAttributeValues: {
-          ':meetingId': { S: event.requestContext.authorizer.MeetingId }
+          ':meetingId': {
+            S: event.requestContext.authorizer.MeetingId
+          }
         },
         KeyConditionExpression: 'MeetingId = :meetingId',
         ProjectionExpression: 'ConnectionId',
@@ -284,7 +312,10 @@ exports.ondisconnect = async event => {
       })
       .promise();
   } catch (e) {
-    return { statusCode: 500, body: e.stack };
+    return {
+      statusCode: 500,
+      body: e.stack
+    };
   }
 
   const apigwManagementApi = new AWS.ApiGatewayManagementApi({
@@ -303,7 +334,10 @@ exports.ondisconnect = async event => {
     const connectionId = connection.ConnectionId.S;
     try {
       await apigwManagementApi
-        .postToConnection({ ConnectionId: connectionId, Data: JSON.stringify(postData) })
+        .postToConnection({
+          ConnectionId: connectionId,
+          Data: JSON.stringify(postData)
+        })
         .promise();
     } catch (e) {
       if (e.statusCode === 410) {
@@ -318,18 +352,25 @@ exports.ondisconnect = async event => {
 
   try {
     await Promise.all(postCalls);
-    } catch (e) {
+  } catch (e) {
     console.error(`failed to post: ${e.message}`);
-    return { statusCode: 500, body: e.stack };
+    return {
+      statusCode: 500,
+      body: e.stack
+    };
   }
-  
+
   try {
     await ddb
       .deleteItem({
         TableName: process.env.CONNECTIONS_TABLE_NAME,
         Key: {
-          MeetingId: { S: event.requestContext.authorizer.MeetingId },
-          AttendeeId: { S: event.requestContext.authorizer.AttendeeId },
+          MeetingId: {
+            S: event.requestContext.authorizer.MeetingId
+          },
+          AttendeeId: {
+            S: event.requestContext.authorizer.AttendeeId
+          },
         },
       })
       .promise();
@@ -339,18 +380,23 @@ exports.ondisconnect = async event => {
       body: `Failed to disconnect: ${JSON.stringify(err)}`
     };
   }
-  return { statusCode: 200, body: 'Disconnected.' };
+  return {
+    statusCode: 200,
+    body: 'Disconnected.'
+  };
 };
 
 exports.sendmessage = async event => {
   // console.log('sendmessage event:', JSON.stringify(event, null, 2));
-  
+
   let attendees = {};
   try {
     attendees = await ddb
       .query({
         ExpressionAttributeValues: {
-          ':meetingId': { S: event.requestContext.authorizer.MeetingId }
+          ':meetingId': {
+            S: event.requestContext.authorizer.MeetingId
+          }
         },
         KeyConditionExpression: 'MeetingId = :meetingId',
         ProjectionExpression: 'ConnectionId',
@@ -358,7 +404,10 @@ exports.sendmessage = async event => {
       })
       .promise();
   } catch (e) {
-    return { statusCode: 500, body: e.stack };
+    return {
+      statusCode: 500,
+      body: e.stack
+    };
   }
   const apigwManagementApi = new AWS.ApiGatewayManagementApi({
     apiVersion: '2018-11-29',
@@ -369,13 +418,13 @@ exports.sendmessage = async event => {
 
   // const postData = JSON.parse(event.body).data;
   let postData = {};
-  if(messageType === 'sendmessage') {
+  if (messageType === 'sendmessage') {
     const messageId = uuid();
     const currentTime = Date.now();
-   
+
     postData = {
       'MessageId': messageId,
-      'Data': JSON.parse(event.body).data ,
+      'Data': JSON.parse(event.body).data,
       'Sender': JSON.parse(event.body).sender,
       'Content': JSON.parse(event.body).content,
       'Time': currentTime.toString(),
@@ -386,18 +435,32 @@ exports.sendmessage = async event => {
     await ddb.putItem({
       TableName: MESSAGES_TABLE_NAME,
       Item: {
-        'MessageId': {S: messageId},
-        'MeetingId': {S: event.requestContext.authorizer.MeetingId},
-        'Data': {S: JSON.parse(event.body).data },
-        'Sender': {S: JSON.parse(event.body).sender},
-        'Content': {S: JSON.parse(event.body).content},
-        'Time': {N: currentTime.toString()},
-        'Vote': {S: '[]'}
+        'MessageId': {
+          S: messageId
+        },
+        'MeetingId': {
+          S: event.requestContext.authorizer.MeetingId
+        },
+        'Data': {
+          S: JSON.parse(event.body).data
+        },
+        'Sender': {
+          S: JSON.parse(event.body).sender
+        },
+        'Content': {
+          S: JSON.parse(event.body).content
+        },
+        'Time': {
+          N: currentTime.toString()
+        },
+        'Vote': {
+          S: '[]'
+        }
       }
     }).promise();
 
-  } else if(messageType === 'upvote') {
-    try{
+  } else if (messageType === 'upvote') {
+    try {
       const result = await ddb.getItem({
         TableName: MESSAGES_TABLE_NAME,
         Key: {
@@ -406,27 +469,27 @@ exports.sendmessage = async event => {
           }
         }
       }).promise();
-  
-      if(result) {
+
+      if (result) {
         let voteObject = JSON.parse(result.Item.Vote.S);
         let existing = false;
-        if(voteObject.length == 0) {
+        if (voteObject.length == 0) {
           voteObject = [{
             sender: JSON.parse(event.body).sender
           }];
         } else {
           voteObject.map(vote => {
-            if(vote.sender === JSON.parse(event.body).sender) existing = true;
+            if (vote.sender === JSON.parse(event.body).sender) existing = true;
           });
-  
-          if(!existing) {
+
+          if (!existing) {
             voteObject.push({
               sender: JSON.parse(event.body).sender
             });
           }
         }
-  
-        if(!existing) {
+
+        if (!existing) {
           const result = await ddb.updateItem({
             TableName: MESSAGES_TABLE_NAME,
             Key: {
@@ -435,13 +498,13 @@ exports.sendmessage = async event => {
               }
             },
             UpdateExpression: "set Vote = :r",
-            ExpressionAttributeValues : {
-              ":r" : {
+            ExpressionAttributeValues: {
+              ":r": {
                 S: JSON.stringify(voteObject)
               }
             }
           }).promise();
-  
+
           postData = {
             'MessageId': JSON.parse(event.body).id,
             'Vote': voteObject,
@@ -449,13 +512,16 @@ exports.sendmessage = async event => {
           };
         }
       }
-      
-    } catch(e) {
+
+    } catch (e) {
       console.error(e);
-      return { statusCode: 500, body: e.stack };
+      return {
+        statusCode: 500,
+        body: e.stack
+      };
     }
-    
-  } else if(messageType === 'deletemessage') {
+
+  } else if (messageType === 'deletemessage') {
     await ddb
       .deleteItem({
         TableName: MESSAGES_TABLE_NAME,
@@ -466,21 +532,23 @@ exports.sendmessage = async event => {
         },
       })
       .promise();
-    
-      postData = {
-        'MessageId': JSON.parse(event.body).id,
-        'Type': 'deletemessage'
-      };
-  } else if(messageType === 'getall') {
-    try{
+
+    postData = {
+      'MessageId': JSON.parse(event.body).id,
+      'Type': 'deletemessage'
+    };
+  } else if (messageType === 'getall') {
+    try {
       const filter = {
         TableName: MESSAGES_TABLE_NAME,
         FilterExpression: "MeetingId = :meetingId",
         ExpressionAttributeValues: {
-          ":meetingId": {S: event.requestContext.authorizer.MeetingId}
+          ":meetingId": {
+            S: event.requestContext.authorizer.MeetingId
+          }
         }
       };
-      
+
       const messages = await ddb.scan(filter).promise();
       postDataMessages = [];
       messages.Items.map(message => {
@@ -492,47 +560,50 @@ exports.sendmessage = async event => {
           Vote: JSON.parse(message.Vote.S)
         })
       })
-             
+
       postData = {
         Type: 'getall',
         messages: postDataMessages
       }
-    } catch(e) {
+    } catch (e) {
       console.error(e);
-      return { statusCode: 500, body: e.stack };
+      return {
+        statusCode: 500,
+        body: e.stack
+      };
     }
-    
-  } else if(messageType === 'raisehand') {
+
+  } else if (messageType === 'raisehand') {
     postData = {
       Type: 'raisehand',
       Data: JSON.parse(event.body).data,
       Sender: event.requestContext.authorizer.AttendeeId
     }
-  } else if(messageType === 'downhand') {
+  } else if (messageType === 'downhand') {
     postData = {
       Type: 'downhand',
       Data: JSON.parse(event.body).attendeeId,
       Sender: event.requestContext.authorizer.AttendeeId
     }
-  } else if(messageType === 'muteremote') {
+  } else if (messageType === 'muteremote') {
     postData = {
       Type: 'muteremote',
       Data: JSON.parse(event.body).attendeeId,
       Sender: event.requestContext.authorizer.AttendeeId
     }
-  } else if(messageType === 'removeremote') {
+  } else if (messageType === 'removeremote') {
     postData = {
       Type: 'removeremote',
       Data: JSON.parse(event.body).attendeeId,
       Sender: event.requestContext.authorizer.AttendeeId
     }
-  } else if(messageType === 'makehost') {
+  } else if (messageType === 'makehost') {
     postData = {
       Type: 'makehost',
       Data: JSON.parse(event.body).attendeeId,
       Sender: event.requestContext.authorizer.AttendeeId
     }
-  } else if(messageType === 'gotolive') {
+  } else if (messageType === 'gotolive') {
     const result = await ddb.getItem({
       TableName: MEETINGS_TABLE_NAME,
       Key: {
@@ -542,32 +613,32 @@ exports.sendmessage = async event => {
       }
     }).promise();
 
-    if(result) {
+    if (result) {
       // if(result.Item.Live) {
-        await ddb.updateItem({
-          TableName: MEETINGS_TABLE_NAME,
-          Key: {
-            'Title': {
-              S: `${JSON.parse(event.body).title}`
-            }
-          },
-          UpdateExpression: "set Live = :r",
-          ExpressionAttributeValues : {
-            ":r" : {
-              S: "True"
-            }
+      await ddb.updateItem({
+        TableName: MEETINGS_TABLE_NAME,
+        Key: {
+          'Title': {
+            S: `${JSON.parse(event.body).title}`
           }
-        }).promise();
-  
-        postData = {
-          'Title': JSON.parse(event.body).title,
-          'Host': event.requestContext.authorizer.AttendeeId,
-          'Type': 'gotolive'
-        };
+        },
+        UpdateExpression: "set Live = :r",
+        ExpressionAttributeValues: {
+          ":r": {
+            S: "True"
+          }
+        }
+      }).promise();
+
+      postData = {
+        'Title': JSON.parse(event.body).title,
+        'Host': event.requestContext.authorizer.AttendeeId,
+        'Type': 'gotolive'
+      };
       // }
-      
-    } 
-  } else if(messageType === 'getlivestatus'){
+
+    }
+  } else if (messageType === 'getlivestatus') {
     const result = await ddb.getItem({
       TableName: MEETINGS_TABLE_NAME,
       Key: {
@@ -577,9 +648,9 @@ exports.sendmessage = async event => {
       }
     }).promise();
 
-    if(result) {
-      try{
-        if(result.Item.Live.S === 'True') {
+    if (result) {
+      try {
+        if (result.Item.Live.S === 'True') {
           postData = {
             'status': true,
             'Type': 'getlivestatus'
@@ -590,40 +661,40 @@ exports.sendmessage = async event => {
             'Type': 'getlivestatus'
           };
         }
-      } catch(e) {
+      } catch (e) {
         postData = {
           'status': false,
           'Type': 'getlivestatus'
         };
       }
-      
+
     } else {
       postData = {
         'status': false,
         'Type': 'getlivestatus'
       };
     }
-  } else if(messageType === 'beforepart') {
+  } else if (messageType === 'beforepart') {
     postData = {
       Type: 'beforepart',
       Name: JSON.parse(event.body).name,
       isVideoChat: JSON.parse(event.body).isVideoChat,
       Sender: event.requestContext.authorizer.AttendeeId
     }
-  } else if(messageType === 'showableparts') {
+  } else if (messageType === 'showableparts') {
     postData = {
       Type: 'showableparts',
       showableparts: JSON.parse(event.body).showableparts,
       Sender: event.requestContext.authorizer.AttendeeId
     }
-  } else if(messageType === 'overflow') {
+  } else if (messageType === 'overflow') {
     postData = {
       Type: 'overflow',
       overflowId: JSON.parse(event.body).overflowId,
       status: JSON.parse(event.body).status,
       Sender: event.requestContext.authorizer.AttendeeId
     }
-  } else if(messageType === 'updateroominfo') {
+  } else if (messageType === 'updateroominfo') {
     const result = await ddb.getItem({
       TableName: MEETINGS_TABLE_NAME,
       Key: {
@@ -633,8 +704,8 @@ exports.sendmessage = async event => {
       }
     }).promise();
 
-    if(result) {
-      if(result.Item.Live) {
+    if (result) {
+      if (result.Item.Live) {
         await ddb.updateItem({
           TableName: MEETINGS_TABLE_NAME,
           Key: {
@@ -643,24 +714,24 @@ exports.sendmessage = async event => {
             }
           },
           UpdateExpression: "set TotalUsers = :t, HostUsers = :h, VideoUsers = :v, ObsUsers = :o",
-          ExpressionAttributeValues : {
-            ":t" : {
-              S:  `${JSON.parse(event.body).all}`
+          ExpressionAttributeValues: {
+            ":t": {
+              S: `${JSON.parse(event.body).all}`
             },
-            ":h" : {
-              S:  `${JSON.parse(event.body).hosts}`
+            ":h": {
+              S: `${JSON.parse(event.body).hosts}`
             },
-            ":v" : {
-              S:  `${JSON.parse(event.body).videos}`
+            ":v": {
+              S: `${JSON.parse(event.body).videos}`
             },
-            ":o" : {
-              S:  `${JSON.parse(event.body).parts}`
+            ":o": {
+              S: `${JSON.parse(event.body).parts}`
             }
           }
         }).promise();
-  
+
       }
-      
+
     }
 
     return;
@@ -670,7 +741,10 @@ exports.sendmessage = async event => {
     const connectionId = connection.ConnectionId.S;
     try {
       await apigwManagementApi
-        .postToConnection({ ConnectionId: connectionId, Data: JSON.stringify(postData) })
+        .postToConnection({
+          ConnectionId: connectionId,
+          Data: JSON.stringify(postData)
+        })
         .promise();
     } catch (e) {
       if (e.statusCode === 410) {
@@ -684,19 +758,25 @@ exports.sendmessage = async event => {
   });
   try {
     await Promise.all(postCalls);
-   } catch (e) {
+  } catch (e) {
     console.error(`failed to post: ${e.message}`);
-    return { statusCode: 500, body: e.stack };
+    return {
+      statusCode: 500,
+      body: e.stack
+    };
   }
-  return { statusCode: 200, body: 'Data sent.' };
+  return {
+    statusCode: 200,
+    body: 'Data sent.'
+  };
 
-  
-  
+
+
 };
-  
+
 // API
 
-exports.createMeeting = async(event, context, callback) => {
+exports.createMeeting = async (event, context, callback) => {
   console.log("createMeeting event:", JSON.stringify(event, null, 2));
 
   let payload;
@@ -740,13 +820,13 @@ exports.createMeeting = async(event, context, callback) => {
 
   response.statusCode = 201;
   response.body = JSON.stringify(joinInfo, '', 2);
-  
+
   console.info("createMeeting event > response:", JSON.stringify(response, null, 2));
 
   callback(null, response);
 };
 
-exports.join = async(event, context, callback) => {
+exports.join = async (event, context, callback) => {
   console.log("join event:", JSON.stringify(event, null, 2));
 
   let payload;
@@ -768,7 +848,7 @@ exports.join = async(event, context, callback) => {
     callback(null, response);
     return;
   }
-  
+
   if (payload.role === 'host' && !payload.playbackURL) {
     console.log("join > missing required field: Must provide playbackURL");
     response.statusCode = 400;
@@ -798,9 +878,9 @@ exports.join = async(event, context, callback) => {
 
   console.info('join event > Adding new attendee');
   const attendeeInfo = (await chime.createAttendee({
-      MeetingId: meetingInfo.Meeting.MeetingId,
-      ExternalUserId: uuid(),
-    }).promise());
+    MeetingId: meetingInfo.Meeting.MeetingId,
+    ExternalUserId: uuid(),
+  }).promise());
 
   console.info("join event > attendeeInfo:", JSON.stringify(attendeeInfo, null, 2));
 
@@ -819,13 +899,13 @@ exports.join = async(event, context, callback) => {
 
   response.statusCode = 200;
   response.body = JSON.stringify(joinInfo, '', 2);
-  
+
   console.info("join event > response:", JSON.stringify(response, null, 2));
 
   callback(null, response);
 };
 
-exports.attendee = async(event, context, callback) => {
+exports.attendee = async (event, context, callback) => {
   console.log("attendee event:", JSON.stringify(event, null, 2));
 
   if (!event.queryStringParameters.title || !event.queryStringParameters.attendeeId) {
@@ -847,13 +927,13 @@ exports.attendee = async(event, context, callback) => {
 
   response.statusCode = 200;
   response.body = JSON.stringify(attendeeInfo, '', 2);
-  
+
   console.info("attendee event > response:", JSON.stringify(response, null, 2));
 
   callback(null, response);
 };
 
-exports.attendees = async(event, context, callback) => {
+exports.attendees = async (event, context, callback) => {
   console.log("attendees event:", JSON.stringify(event, null, 2));
 
   if (!event.queryStringParameters.title) {
@@ -869,13 +949,13 @@ exports.attendees = async(event, context, callback) => {
 
   response.statusCode = 200;
   response.body = JSON.stringify(attendeeInfo, '', 2);
-  
+
   console.info("attendees event > response:", JSON.stringify(response, null, 2));
 
   callback(null, response);
 };
 
-exports.roomusers = async(event, context, callback) => {
+exports.roomusers = async (event, context, callback) => {
   if (!event.queryStringParameters.title) {
     console.log("attendees event > missing required fields: Must provide title");
     response.statusCode = 400;
@@ -896,10 +976,10 @@ exports.roomusers = async(event, context, callback) => {
 
   console.log(JSON.stringify(result));
 
-  
+
   response.statusCode = 200;
   if (result.Item) {
-    if(result.Item.Live.S === 'True') {
+    if (result.Item.Live.S === 'True') {
       const roomuserinfo = {
         total: result.Item.TotalUsers.S,
         hosts: result.Item.HostUsers.S,
@@ -907,7 +987,7 @@ exports.roomusers = async(event, context, callback) => {
         parts: result.Item.ObsUsers.S,
       }
       response.body = JSON.stringify(roomuserinfo);
-    }  else {
+    } else {
       const errordata = {
         error: 'This session is ended!'
       }
@@ -919,12 +999,12 @@ exports.roomusers = async(event, context, callback) => {
     }
     response.body = JSON.stringify(errordata);
   }
-  
-  
+
+
   callback(null, response);
 }
 
-exports.end = async(event, context, callback) => {
+exports.end = async (event, context, callback) => {
   console.log("end event:", JSON.stringify(event, null, 2));
 
   if (!event.queryStringParameters.title) {
@@ -939,7 +1019,7 @@ exports.end = async(event, context, callback) => {
 
   response.statusCode = 200;
   response.body = JSON.stringify(endMeeting(title));
-  
+
   console.info("end event > response:", JSON.stringify(response, null, 2));
 
   callback(null, response);
