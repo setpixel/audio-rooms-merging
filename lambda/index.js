@@ -14,6 +14,11 @@ chime.endpoint = new AWS.Endpoint('https://service.chime.aws.amazon.com/console'
 const oneDayFromNow = Math.floor(Date.now() / 1000) + 60 * 60 * 24;
 const strictVerify = true;
 
+const FFmpeg = require('./ffmpeg');
+const GStreamer = require('./gstreamer');
+const PROCESS_NAME = process.env.PROCESS_NAME || 'GStreamer';
+const recordController = require('./controllers/record.controller');
+
 const response = {
   "statusCode": 200,
   "headers": {
@@ -92,6 +97,9 @@ const endMeeting = async (title) => {
     await chime.deleteMeeting({
       MeetingId: meetingInfo.Meeting.MeetingId,
     }).promise();
+
+    await recordController.mergeAll(meetingInfo.Meeting.MeetingId)
+    
   } catch (err) {
     console.info("endMeeting > try/catch:", JSON.stringify(err, null, 2));
     // return null;
@@ -191,9 +199,7 @@ function simplifyTitle(title) {
 // Websocket
 
 exports.authorize = async (event, context, callback) => {
-  console.log('authorize event:', JSON.stringify(event, null, 2));
-
-  const generatePolicy = (principalId, effect, resource, context) => {
+const generatePolicy = (principalId, effect, resource, context) => {
     const authResponse = {};
     authResponse.principalId = principalId;
     if (effect && resource) {
@@ -253,15 +259,13 @@ exports.authorize = async (event, context, callback) => {
     'me',
     passedAuthCheck ? 'Allow' : 'Deny',
     event.methodArn, {
-      MeetingId: event.queryStringParameters.MeetingId,
-      AttendeeId: event.queryStringParameters.AttendeeId
-    }
+    MeetingId: event.queryStringParameters.MeetingId,
+    AttendeeId: event.queryStringParameters.AttendeeId
+  }
   );
 };
 
 exports.onconnect = async event => {
-  console.log('onconnect event:', JSON.stringify(event, null, 2));
-
   try {
     await ddb
       .putItem({
@@ -296,7 +300,6 @@ exports.onconnect = async event => {
 };
 
 exports.ondisconnect = async event => {
-  console.log('ondisconnect event:', JSON.stringify(event, null, 2));
   let attendees = {};
   try {
     attendees = await ddb
@@ -341,7 +344,6 @@ exports.ondisconnect = async event => {
         .promise();
     } catch (e) {
       if (e.statusCode === 410) {
-        console.log(`found stale connection, skipping ${connectionId}`);
       } else {
         console.error(
           `error posting to connection ${connectionId}: ${e.message}`
@@ -387,8 +389,6 @@ exports.ondisconnect = async event => {
 };
 
 exports.sendmessage = async event => {
-  // console.log('sendmessage event:', JSON.stringify(event, null, 2));
-
   let attendees = {};
   try {
     attendees = await ddb
@@ -748,7 +748,7 @@ exports.sendmessage = async event => {
         .promise();
     } catch (e) {
       if (e.statusCode === 410) {
-        console.log(`found stale connection, skipping ${connectionId}`);
+        
       } else {
         console.error(
           `error posting to connection ${connectionId}: ${e.message}`
@@ -769,21 +769,15 @@ exports.sendmessage = async event => {
     statusCode: 200,
     body: 'Data sent.'
   };
-
-
-
 };
 
 // API
 
 exports.createMeeting = async (event, context, callback) => {
-  console.log("createMeeting event:", JSON.stringify(event, null, 2));
-
   let payload;
   try {
     payload = JSON.parse(event.body);
   } catch (err) {
-    console.log("createMeeting event > parse payload:", JSON.stringify(err, null, 2));
     response.statusCode = 500;
     response.body = JSON.stringify(err);
     callback(null, response);
@@ -820,21 +814,16 @@ exports.createMeeting = async (event, context, callback) => {
 
   response.statusCode = 201;
   response.body = JSON.stringify(joinInfo, '', 2);
-
-  console.info("createMeeting event > response:", JSON.stringify(response, null, 2));
-
   callback(null, response);
 };
 
 exports.join = async (event, context, callback) => {
-  console.log("join event:", JSON.stringify(event, null, 2));
 
   let payload;
 
   try {
     payload = JSON.parse(event.body);
   } catch (err) {
-    console.log("join event > parse payload:", JSON.stringify(err, null, 2));
     response.statusCode = 500;
     response.body = JSON.stringify(err);
     callback(null, response);
@@ -842,7 +831,6 @@ exports.join = async (event, context, callback) => {
   }
 
   if (!payload || !payload.title || !payload.name) {
-    console.log("join > missing required fields: Must provide title and name");
     response.statusCode = 400;
     response.body = "Must provide title and name";
     callback(null, response);
@@ -850,7 +838,6 @@ exports.join = async (event, context, callback) => {
   }
 
   if (payload.role === 'host' && !payload.playbackURL) {
-    console.log("join > missing required field: Must provide playbackURL");
     response.statusCode = 400;
     response.body = "Must provide playbackURL";
     callback(null, response);
@@ -874,15 +861,10 @@ exports.join = async (event, context, callback) => {
     await putMeeting(title, payload.playbackURL, meetingInfo);
   }
 
-  console.info("join event > meetingInfo:", JSON.stringify(meetingInfo, null, 2));
-
-  console.info('join event > Adding new attendee');
   const attendeeInfo = (await chime.createAttendee({
     MeetingId: meetingInfo.Meeting.MeetingId,
     ExternalUserId: uuid(),
   }).promise());
-
-  console.info("join event > attendeeInfo:", JSON.stringify(attendeeInfo, null, 2));
 
   putAttendee(title, attendeeInfo.Attendee.AttendeeId, name);
 
@@ -906,10 +888,7 @@ exports.join = async (event, context, callback) => {
 };
 
 exports.attendee = async (event, context, callback) => {
-  console.log("attendee event:", JSON.stringify(event, null, 2));
-
   if (!event.queryStringParameters.title || !event.queryStringParameters.attendeeId) {
-    console.log("attendee event > missing required fields: Must provide title and attendeeId");
     response.statusCode = 400;
     response.body = "Must provide title and attendeeId";
     callback(null, response);
@@ -934,10 +913,7 @@ exports.attendee = async (event, context, callback) => {
 };
 
 exports.attendees = async (event, context, callback) => {
-  console.log("attendees event:", JSON.stringify(event, null, 2));
-
   if (!event.queryStringParameters.title) {
-    console.log("attendees event > missing required fields: Must provide title");
     response.statusCode = 400;
     response.body = "Must provide title";
     callback(null, response);
@@ -957,7 +933,6 @@ exports.attendees = async (event, context, callback) => {
 
 exports.roomusers = async (event, context, callback) => {
   if (!event.queryStringParameters.title) {
-    console.log("attendees event > missing required fields: Must provide title");
     response.statusCode = 400;
     response.body = "Must provide title";
     callback(null, response);
@@ -973,9 +948,6 @@ exports.roomusers = async (event, context, callback) => {
       }
     }
   }).promise();
-
-  console.log(JSON.stringify(result));
-
 
   response.statusCode = 200;
   if (result.Item) {
@@ -1005,10 +977,7 @@ exports.roomusers = async (event, context, callback) => {
 }
 
 exports.end = async (event, context, callback) => {
-  console.log("end event:", JSON.stringify(event, null, 2));
-
   if (!event.queryStringParameters.title) {
-    console.log("end event > missing required fields: Must provide title");
     response.statusCode = 400;
     response.body = "Must provide title";
     callback(null, response);
@@ -1019,8 +988,5 @@ exports.end = async (event, context, callback) => {
 
   response.statusCode = 200;
   response.body = JSON.stringify(endMeeting(title));
-
-  console.info("end event > response:", JSON.stringify(response, null, 2));
-
   callback(null, response);
 };
