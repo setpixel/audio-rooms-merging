@@ -99,10 +99,9 @@ const endMeeting = async (title) => {
     }).promise();
 
     await recordController.mergeAll(meetingInfo.Meeting.MeetingId)
-    
+
   } catch (err) {
     console.info("endMeeting > try/catch:", JSON.stringify(err, null, 2));
-    // return null;
   }
 
   const params = {
@@ -191,15 +190,13 @@ const putAttendee = async (title, attendeeId, name) => {
 };
 
 function simplifyTitle(title) {
-  // Strip out most symbolic characters and whitespace and make case insensitive,
-  // but preserve any Unicode characters outside of the ASCII range.
   return (title || '').replace(/[\s()!@#$%^&*`~_=+{}|\\;:'",.<>/?\[\]-]+/gu, '').toLowerCase() || null;
 };
 
 // Websocket
 
 exports.authorize = async (event, context, callback) => {
-const generatePolicy = (principalId, effect, resource, context) => {
+  const generatePolicy = (principalId, effect, resource, context) => {
     const authResponse = {};
     authResponse.principalId = principalId;
     if (effect && resource) {
@@ -259,9 +256,9 @@ const generatePolicy = (principalId, effect, resource, context) => {
     'me',
     passedAuthCheck ? 'Allow' : 'Deny',
     event.methodArn, {
-    MeetingId: event.queryStringParameters.MeetingId,
-    AttendeeId: event.queryStringParameters.AttendeeId
-  }
+      MeetingId: event.queryStringParameters.MeetingId,
+      AttendeeId: event.queryStringParameters.AttendeeId
+    }
   );
 };
 
@@ -343,8 +340,7 @@ exports.ondisconnect = async event => {
         })
         .promise();
     } catch (e) {
-      if (e.statusCode === 410) {
-      } else {
+      if (e.statusCode === 410) {} else {
         console.error(
           `error posting to connection ${connectionId}: ${e.message}`
         );
@@ -416,7 +412,6 @@ exports.sendmessage = async event => {
 
   let messageType = JSON.parse(event.body).type;
 
-  // const postData = JSON.parse(event.body).data;
   let postData = {};
   if (messageType === 'sendmessage') {
     const messageId = uuid();
@@ -748,7 +743,7 @@ exports.sendmessage = async event => {
         .promise();
     } catch (e) {
       if (e.statusCode === 410) {
-        
+
       } else {
         console.error(
           `error posting to connection ${connectionId}: ${e.message}`

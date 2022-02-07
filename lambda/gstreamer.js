@@ -1,11 +1,15 @@
 // Class to handle child process used for running GStreamer
 
 const child_process = require('child_process');
-const { EventEmitter } = require('events');
+const {
+  EventEmitter
+} = require('events');
 const shell = require('shelljs');
 const kill = require('tree-kill');
 
-const { getCodecInfoFromRtpParameters } = require('./utils');
+const {
+  getCodecInfoFromRtpParameters
+} = require('./utils');
 
 const RECORD_FILE_LOCATION_PATH = process.env.RECORD_FILE_LOCATION_PATH || './public/files';
 
@@ -14,14 +18,14 @@ const GSTREAMER_COMMAND = 'gst-launch-1.0';
 const GSTREAMER_OPTIONS = '-v -e';
 
 module.exports = class GStreamer {
-  constructor (rtpParameters) {
+  constructor(rtpParameters) {
     this._rtpParameters = rtpParameters;
     this._process = undefined;
     this._observer = new EventEmitter();
     this._createProcess();
   }
 
-  _createProcess () {
+  _createProcess() {
     // Use the commented out exe to create gstreamer dot file
     // const exe = `GST_DEBUG=${GSTREAMER_DEBUG_LEVEL} GST_DEBUG_DUMP_DOT_DIR=./dump ${GSTREAMER_COMMAND} ${GSTREAMER_OPTIONS}`;
     const exe = `GST_DEBUG=${GSTREAMER_DEBUG_LEVEL} ${GSTREAMER_COMMAND} ${GSTREAMER_OPTIONS}`;
@@ -60,19 +64,19 @@ module.exports = class GStreamer {
     );
   }
 
-  kill () {
+  kill() {
     console.log('kill() [pid:%d]', this._process.pid);
     // this._process.kill('SIGINT');
     kill(this._process.pid)
   }
 
   // Build the gstreamer child process args
-  get _commandArgs () {
+  get _commandArgs() {
     let commandArgs = [
       `rtpbin name=rtpbin latency=50 buffer-mode=0 sdes="application/x-rtp-source-sdes, cname=(string)${this._rtpParameters.audio.rtpParameters.rtcp.cname}"`,
       '!'
     ];
-    
+
     console.log(this._rtpParameters);
 
     // commandArgs = commandArgs.concat(this._videoArgs);
@@ -83,8 +87,10 @@ module.exports = class GStreamer {
     return commandArgs;
   }
 
-  get _videoArgs () {
-    const { video } = this._rtpParameters;
+  get _videoArgs() {
+    const {
+      video
+    } = this._rtpParameters;
     // Get video codec info
     const videoCodecInfo = getCodecInfoFromRtpParameters('video', video.rtpParameters);
 
@@ -104,7 +110,9 @@ module.exports = class GStreamer {
   }
 
   get _audioArgs() {
-    const { audio } = this._rtpParameters;
+    const {
+      audio
+    } = this._rtpParameters;
     // Get audio codec info
     const audioCodecInfo = getCodecInfoFromRtpParameters('audio', audio.rtpParameters);
     console.log(audioCodecInfo)
@@ -128,9 +136,11 @@ module.exports = class GStreamer {
     ];
   }
 
-  get _rtcpArgs () {
+  get _rtcpArgs() {
     // const { video, audio } = this._rtpParameters;
-    const { audio } = this._rtpParameters;
+    const {
+      audio
+    } = this._rtpParameters;
 
     return [
       // `udpsrc address=127.0.0.1 port=${video.remoteRtcpPort}`,
@@ -146,7 +156,7 @@ module.exports = class GStreamer {
     ];
   }
 
-  get _sinkArgs () {
+  get _sinkArgs() {
     return [
       'webmmux name=mux',
       '!',

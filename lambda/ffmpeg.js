@@ -1,22 +1,28 @@
 // Class to handle child process used for running FFmpeg
 
 const child_process = require('child_process');
-const { EventEmitter } = require('events');
+const {
+  EventEmitter
+} = require('events');
 
-const { createSdpText } = require('./sdp');
-const { convertStringToStream } = require('./utils');
+const {
+  createSdpText
+} = require('./sdp');
+const {
+  convertStringToStream
+} = require('./utils');
 
 const RECORD_FILE_LOCATION_PATH = process.env.RECORD_FILE_LOCATION_PATH || './files';
 
 module.exports = class FFmpeg {
-  constructor (rtpParameters) {
+  constructor(rtpParameters) {
     this._rtpParameters = rtpParameters;
     this._process = undefined;
     this._observer = new EventEmitter();
     this._createProcess();
   }
 
-  _createProcess () {
+  _createProcess() {
     const sdpString = createSdpText(this._rtpParameters);
     const sdpStream = convertStringToStream(sdpString);
 
@@ -35,7 +41,7 @@ module.exports = class FFmpeg {
     if (this._process.stdout) {
       this._process.stdout.setEncoding('utf-8');
 
-      this._process.stdout.on('data', data => 
+      this._process.stdout.on('data', data =>
         console.log('ffmpeg::process::data [data:%o]', data)
       );
     }
@@ -62,12 +68,12 @@ module.exports = class FFmpeg {
     sdpStream.pipe(this._process.stdin);
   }
 
-  kill () {
+  kill() {
     console.log('kill() [pid:%d]', this._process.pid);
     this._process.kill('SIGINT');
   }
 
-  get _commandArgs () {
+  get _commandArgs() {
     let commandArgs = [
       '-loglevel',
       'debug',
@@ -95,7 +101,7 @@ module.exports = class FFmpeg {
     return commandArgs;
   }
 
-  get _videoArgs () {
+  get _videoArgs() {
     return [
       '-map',
       '0:v:0',
@@ -104,7 +110,7 @@ module.exports = class FFmpeg {
     ];
   }
 
-  get _audioArgs () {
+  get _audioArgs() {
     return [
       '-map',
       '0:a:0',

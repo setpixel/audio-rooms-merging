@@ -27,7 +27,7 @@ exports.addNewRecord = async (username, roomname, filename, starttime) => {
     `-ab 128k`,
     `-ar 44100`,
     `-y ${RECORD_FILE_LOCATION_PATH}/${starttime}.mp3`
-  ],{
+  ], {
     detached: false,
     shell: true
   });
@@ -44,7 +44,7 @@ exports.addNewRecord = async (username, roomname, filename, starttime) => {
   }
 
   const record = await RecordModel.create(recordInfo);
-  
+
   // await this.mergeAll(roomname);
 
   uploadFileToS3(roomname, starttime);
@@ -64,7 +64,7 @@ exports.mergeAll = async (roomname) => {
     row: true
   }).then(rows => {
     return rows.map(r => {
-        return r.dataValues;
+      return r.dataValues;
     })
   });
 
@@ -76,21 +76,21 @@ exports.mergeAll = async (roomname) => {
     row: true
   });
 
-  if(totaltomerge) {
+  if (totaltomerge) {
     mergefirst = totaltomerge.record;
     for (var i = 0; i < recordstomerge.length; i++) {
-      delaytime = Math.ceil((recordstomerge[i].starttime - totaltomerge.starttime)/1000);
+      delaytime = Math.ceil((recordstomerge[i].starttime - totaltomerge.starttime) / 1000);
       await spawn("ffmpeg", [
         `-i ${mergefirst}`,
         `-i ${recordstomerge[i].record}`,
         `-filter_complex "[1]adelay=${delaytime}s|${delaytime}s[a1];[0:a][a1]amix=inputs=2[a]"`,
         `-map "[a]"`,
         `${RECORD_FILE_LOCATION_PATH}/${roomname}-${recordstomerge[i].id}.mp3`
-      ],{
+      ], {
         detached: false,
         shell: true
       });
-  
+
       await RecordModel.update({
         mergestatus: 'yes'
       }, {
@@ -98,7 +98,7 @@ exports.mergeAll = async (roomname) => {
           id: [recordstomerge[i].id]
         }
       });
-  
+
       await RecordModel.update({
         record: `${RECORD_FILE_LOCATION_PATH}/${roomname}-${recordstomerge[i].id}.mp3`,
         filename: `${roomname}-${recordstomerge[i].id}.mp3`
@@ -111,18 +111,18 @@ exports.mergeAll = async (roomname) => {
       mergefirst = `${RECORD_FILE_LOCATION_PATH}/${roomname}-${recordstomerge[i].id}.mp3`;
     }
   } else {
-    delaytime = Math.ceil((recordstomerge[1].starttime - recordstomerge[0].starttime)/1000);
+    delaytime = Math.ceil((recordstomerge[1].starttime - recordstomerge[0].starttime) / 1000);
     await spawn("ffmpeg", [
       `-i ${recordstomerge[0].record}`,
       `-i ${recordstomerge[1].record}`,
       `-filter_complex "[1]adelay=${delaytime}s|${delaytime}s[a1];[0:a][a1]amix=inputs=2[a]"`,
       `-map "[a]"`,
       `${RECORD_FILE_LOCATION_PATH}/${roomname}-${recordstomerge[1].id}.mp3`
-    ],{
+    ], {
       detached: false,
       shell: true
     });
-  
+
     await RecordModel.update({
       mergestatus: 'yes'
     }, {
@@ -130,7 +130,7 @@ exports.mergeAll = async (roomname) => {
         id: [recordstomerge[0].id, recordstomerge[1].id]
       }
     });
-  
+
     const recordInfo = {
       filename: `${roomname}-${recordstomerge[1].id}.mp3`,
       username: 'system',
@@ -141,22 +141,22 @@ exports.mergeAll = async (roomname) => {
       recordtype: 'total', // individual, total
       mergestatus: 'yes', // 'yes': merged, 'no': not merged
     }
-  
+
     const totalrecord = await RecordModel.create(recordInfo);
-  
+
     for (var i = 2; i < recordstomerge.length; i++) {
-      delaytime = Math.ceil((recordstomerge[i].starttime - recordstomerge[0].starttime)/1000);
+      delaytime = Math.ceil((recordstomerge[i].starttime - recordstomerge[0].starttime) / 1000);
       await spawn("ffmpeg", [
         `-i ${RECORD_FILE_LOCATION_PATH}/${roomname}-${recordstomerge[i-1].id}.mp3`,
         `-i ${recordstomerge[i].record}`,
         `-filter_complex "[1]adelay=${delaytime}s|${delaytime}s[a1];[0:a][a1]amix=inputs=2[a]"`,
         `-map "[a]"`,
         `${RECORD_FILE_LOCATION_PATH}/${roomname}-${recordstomerge[i].id}.mp3`
-      ],{
+      ], {
         detached: false,
         shell: true
       });
-  
+
       await RecordModel.update({
         mergestatus: 'yes'
       }, {
@@ -164,7 +164,7 @@ exports.mergeAll = async (roomname) => {
           id: [recordstomerge[i].id]
         }
       });
-  
+
       await RecordModel.update({
         record: `${RECORD_FILE_LOCATION_PATH}/${roomname}-${recordstomerge[i].id}.mp3`,
         filename: `${roomname}-${recordstomerge[i].id}.mp3`
@@ -191,7 +191,7 @@ exports.getAllRecords = async () => {
     row: true
   }).then(rows => {
     return rows.map(r => {
-        return r.dataValues;
+      return r.dataValues;
     })
   });
 
@@ -200,7 +200,7 @@ exports.getAllRecords = async () => {
 
 
 function uploadFileToS3(roomname, starttime) {
-  try{
+  try {
     const fileContent = fs.readFileSync(`${RECORD_FILE_LOCATION_PATH}/${starttime}.mp3`);
     const params = {
       Bucket: env.AWS_BUCKET_NAME,
@@ -208,16 +208,16 @@ function uploadFileToS3(roomname, starttime) {
       Body: fileContent,
       ACL: 'public-read'
     };
-  
-    s3.upload(params, function(error, data) {
-      if(error) {
+
+    s3.upload(params, function (error, data) {
+      if (error) {
         throw error;
       }
-  
+
       console.log(data)
     });
-  } catch(e) {
+  } catch (e) {
     console.log(e)
   }
- 
+
 }
